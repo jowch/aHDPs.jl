@@ -1,7 +1,7 @@
 name = "aHDPs"
 uuid = "64ad4e86-0911-4a4e-896b-f0bab802a583"
 authors = ["Jonathan Chen <jwhc@ucla.edu>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 BioSequences = "7e6ae17a-c86d-528c-b3b9-7f778a29fe59"
