@@ -1,23 +1,19 @@
 # aHDPs
 
-Yount et al., PNAS, 2019
+Provides a basic tool for identifying αHDPs as described in [Yount et al., PNAS,
+2019](https://www.pnas.org/doi/10.1073/pnas.1819250116) by applying the
+alpha-core formula described in that paper.
 
 ## Example
 ```julia
-julia> ll37 = aa"LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES"
-37aa Amino Acid Sequence:
-LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES
+using aHDPs
+using BioSequences
 
-julia> window_size = 12
-12
 
-julia> core_idx = findcores(ll37; window_size = window_size)
-1-element Vector{UnitRange{Int64}}:
- 11:32
+ll37 = aa"LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES"
+core_ranges = findcores(ll37; window_size = 12)
 
-julia> core_seqs = map(core_idx) do idx
-           ll37[idx]
-       end
-1-element Vector{LongAA}:
- EKIGKEFKRIVQRIKDFLRNLV
+core_seqs = map(core_ranges) do idx
+    ll37[idx]
+end
 ```

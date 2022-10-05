@@ -15,11 +15,11 @@ const HYDROPHOBIC = Set(aa for aa in aa"VMCILFWYAG")
 
 
 """
-    findcores(sequence; window_size = $(length(FORMULA)))
+    findcores(sequence; window_size = min(length(sequence), $(length(FORMULA))))
 
 Returns ranges where the given `sequences` matches the `aHDPs.FORMULA`. By
-default, we use the entire formula to match. The default `window_size` of
-18, the length of the formula.
+default, we use the entire formula to match. The default `window_size` is the
+smaller of the length of the target and the length of the formula.
 
 # Example
 ```julia-repl
@@ -41,57 +41,63 @@ julia> core_seqs = map(core_idx) do idx
  EKIGKEFKRIVQRIKDFLRNLV
 ```
 """
-function findcores(target::AASeq; window_size = length(FORMULA))
+function findcores(target::AASeq; window_size = min(length(target), length(FORMULA)))
     pattern = generate_pattern(window_size)
     scores = conv(pattern, onehot(target))
-    
-    match_indices = findall(≈(1), scores)
+
+    match_indices = findall(≈(window_size), scores)
     ranges = map(Tuple.(match_indices)) do (i,)
         i:i+window_size-1
     end
 
-    merge_adjacent(unique(ranges))
+    isempty(ranges) ? ranges : merge_adjacent(unique(ranges))
 end
 
 
 """
-    onehot([T], sequence)
+    onehot(sequence)
+    onehot(aas)
+    onehot(aa)
 
 Computes a "one-hot" encoding representation of a given amino acid `sequence`.
 Optionally, a target value type `T` can be supplied.
 """
-function onehot(::Type{T}, seq::AASeq) where T
-    enc = zeros(T, length(ALPHABET), length(seq))
-    for (i, a) in enumerate(seq)
-        enc[:, i] = encode(T, a)
+function onehot(seq::AASeq)
+    enc = falses(length(ALPHABET), length(seq))
+    for (i, aa) in enumerate(seq)
+        encode!(view(enc, :, i), aa)
     end
     enc
 end
 
-onehot(seq::AASeq) = onehot(Float64, seq)
+function onehot(aas::Union{AbstractArray{AminoAcid}, AbstractSet{AminoAcid}})
+    enc = falses(length(ALPHABET))
+    for aa in aas
+        encode!(enc, aa)
+    end
+    enc
+end
 
-
-"""
-    encode([T], sequence)
-
-Encodes an amino acid or a collection of amino acids as a one-hot vector.
-"""
-function encode(::Type{T}, aa::AminoAcid) where T
-    enc = zeros(T, length(ALPHABET))
+function onehot(aa::AminoAcid)
+    enc = falses(length(ALPHABET))
     encode!(enc, aa)
     enc
 end
 
-function encode(::Type{T}, aas::Union{AbstractSet{AminoAcid},AASeq}) where T
-    enc = zeros(T, length(ALPHABET))
+function encode!(dst::AbstractVector{Bool}, aas::Union{AbstractSet{AminoAcid},AASeq})
     for a in aas
-        encode!(enc, a)
+        encode!(dst, a)
     end
-    enc
 end
 
-encode(x) = encode(Float64, x)
-encode!(dst::AbstractArray{T}, aa::AminoAcid) where T = dst[AA_IDS[aa]] = one(T)
+function encode!(dst::AbstractVector{Bool}, aa::AminoAcid)
+    if aa == AA_X
+        dst[:] .= true
+    else
+        dst[AA_IDS[aa]] = true
+    end
+end
+
 
 """
     generate_pattern(window_size)
@@ -100,10 +106,10 @@ Computes a one-hot representation of the `aHDPs.FORMULA`. Returns a 3D array
 where the third axis stores each pattern window.
 """
 function generate_pattern(window_size)
-    enc = ones(length(ALPHABET), window_size, length(FORMULA))
+    enc = trues(length(ALPHABET), window_size, length(FORMULA))
 
-    ps = encode(POLAR)
-    hs = encode(HYDROPHOBIC)
+    ps = onehot(POLAR)
+    hs = onehot(HYDROPHOBIC)
 
     for j in axes(enc, 3)
         for (i, x) in enumerate(FORMULA[j:j+window_size-1])
@@ -115,21 +121,21 @@ function generate_pattern(window_size)
         end
     end
 
-    enc ./ window_size
+    enc
 end
 
 """
     conv(pattern, sequence)
 
-Performs a 1D convolution of one-hot encoded `pattern` and `sequence` along all
-windows of the pattern.
+Performs a 1D boolean, convolution of one-hot encoded `pattern` and `sequence`
+along all windows of the pattern.
 """
-function conv(pattern::AbstractArray{T}, seq::AbstractMatrix{T}) where T
+function conv(pattern::BitArray, seq::BitArray) where T
     n, w = size(seq, 2), size(pattern, 2)
-    res = similar(pattern, n - w, size(pattern, 3))
+    res = zeros(Int, max(1, n - w + 1), size(pattern, 3))
 
     for i in axes(res, 1)
-        @inbounds res[i, :] = sum(pattern .* view(seq, :, i:i+w-1); dims = (1, 2))
+        @inbounds res[i, :] = count(any(pattern .& view(seq, :, i:i+w-1); dims = 1); dims = 2)
     end
 
     res
