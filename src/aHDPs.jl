@@ -2,6 +2,7 @@ module aHDPs
 
 using BioSequences
 using CircularArrays
+using SnoopPrecompile
 
 export findcores
 
@@ -160,6 +161,16 @@ function merge_adjacent(ranges)
     map(adjacent_segments) do idx
         (; start), (; stop) = ranges[idx][[1, end]]
         start:stop
+    end
+end
+
+
+@precompile_setup begin
+    ll37 = aa"LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES"
+
+    @precompile_all_calls begin
+        core_idx = findcores(ll37)
+        core_idx = findcores(ll37; window_size = 12)
     end
 end
 
